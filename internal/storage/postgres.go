@@ -2,9 +2,11 @@ package storage
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
+	"github.com/lib/pq"
 	_ "github.com/lib/pq"
-	"github.com/user/urlProject/config"
+	"github.com/lostmyescape/url-shortener/internal/config"
 	"log"
 )
 
@@ -39,7 +41,7 @@ func NewStorage(cfg *config.Config) (*Storage, error) {
     CREATE TABLE IF NOT EXISTS url (
         id SERIAL PRIMARY KEY,
         alias TEXT NOT NULL UNIQUE,
-        url TEXT NOT NULL
+        url TEXT NOT NULL UNIQUE
     );
     CREATE INDEX IF NOT EXISTS idx_alias ON url(alias);
     `
@@ -51,18 +53,63 @@ func NewStorage(cfg *config.Config) (*Storage, error) {
 	return &Storage{DB: db}, nil
 }
 
-func (s *Storage) SaveUrl(urlToSave string, alias string) (int64, error) {
-	const op = "storage.sqlite.SaveUrl"
+func (s *Storage) SaveURL(urlToSave string, alias string) (int64, error) {
+	const op = "storage.postgres.SaveUrl"
 
 	var id int64
-
 	query := "INSERT INTO url(url, alias) VALUES ($1, $2) RETURNING id"
 
 	err := s.DB.QueryRow(query, urlToSave, alias).Scan(&id)
 	if err != nil {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) {
+			if pqErr.Code == "23505" {
+				if pqErr.Constraint == "url_url_key" {
+					return 0, ErrURLExists
+				}
+				if pqErr.Constraint == "url_alias_key" {
+					return 0, ErrAliasExists
+				}
+			}
+		}
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
 
 	return id, nil
+}
 
+func (s *Storage) GetUrl(alias string) (string, error) {
+	const op = "storage.postgres.GetUrl"
+
+	var urlString string
+
+	err := s.DB.QueryRow(`SELECT url FROM url WHERE alias = $1`, alias).Scan(&urlString)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", fmt.Errorf("url not found: %w", err)
+	}
+	if err != nil {
+		return "", fmt.Errorf("%s: %w", op, err)
+	}
+
+	return urlString, nil
+}
+
+func (s *Storage) DeleteURL(alias string) error {
+	const op = "storage.postgres.DeleteURL"
+
+	result, err := s.DB.Exec(`DELETE FROM url WHERE alias = $1`, alias)
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	if rowsAffected == 0 {
+		return ErrAliasNotFound
+	}
+
+	return nil
 }
