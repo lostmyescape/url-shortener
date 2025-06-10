@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="DataSourceManagerImpl" format="xml" multifile-model="true">
-    <data-source source="LOCAL" name="postgres" uuid="267f5493-33b2-486f-b21b-27480d81b3cf">
+    <data-source source="LOCAL" name="golang_db@localhost" uuid="08e89f85-dc8f-4c3a-9074-78c247f0e95e">
       <driver-ref>postgresql</driver-ref>
       <synchronize>true</synchronize>
       <jdbc-driver>org.postgresql.Driver</jdbc-driver>

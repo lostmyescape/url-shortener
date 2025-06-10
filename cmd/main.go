@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	ssogrpc "github.com/lostmyescape/url-shortener/internal/clients/sso/grpc"
 	"github.com/lostmyescape/url-shortener/internal/config"
 	"github.com/lostmyescape/url-shortener/internal/http-server/handlers/deleteURL"
 	"github.com/lostmyescape/url-shortener/internal/http-server/handlers/redirect"
@@ -37,6 +39,18 @@ func main() {
 	)
 
 	log.Debug("debug messages are enabled")
+
+	ssoClient, err := ssogrpc.New(
+		log,
+		cfg.Clients.SSO.Address,
+		cfg.Clients.SSO.Timeout,
+		cfg.Clients.SSO.RetriesCount,
+	)
+	if err != nil {
+		log.Error("failed to init sso client", sl.Err(err))
+		os.Exit(1)
+	}
+	ssoClient.IsAdmin(context.Background(), 1)
 
 	storage, err := dbstorage.NewStorage(cfg)
 	if err != nil {
@@ -106,7 +120,6 @@ func setupLogger(env string) *slog.Logger {
 	}
 
 	return log
-
 }
 
 func setupPrettySlog() *slog.Logger {
